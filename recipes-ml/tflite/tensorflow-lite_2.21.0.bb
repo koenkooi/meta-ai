@@ -10,14 +10,22 @@ DEPENDS += " \
     flatbuffers-tflite-native \
     jpeg \
     libeigen \
-    opencl-headers \
     protobuf \
     protobuf-native \
-    virtual/egl \
 "
 
-PACKAGECONFIG ?= "gpu"
-PACKAGECONFIG[gpu] = " -DTFLITE_ENABLE_GPU=ON, -DTFLITE_ENABLE_GPU=OFF, virtual/libopencl1 vulkan-headers,"
+# The GPU delegate bundles OpenCL, OpenGL ES, and Vulkan backends into a single
+# build-time flag; the runtime selects the backend based on hardware availability.
+# opencl-headers, virtual/egl, virtual/libopencl1, and vulkan-headers are only
+# needed when GPU is enabled.
+# To enable GPU support, add PACKAGECONFIG:append = " gpu" in a hardware-specific
+# layer bbappend.
+PACKAGECONFIG ?= ""
+PACKAGECONFIG[gpu] = " \
+    -DTFLITE_ENABLE_GPU=ON, \
+    -DTFLITE_ENABLE_GPU=OFF, \
+    opencl-headers virtual/egl virtual/libopencl1 vulkan-headers, \
+"
 
 # TensorFlow Lite version components derived from PV
 TF_LITE_VERSION = "${PV}"
