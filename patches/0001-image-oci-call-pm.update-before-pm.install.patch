@@ -1,0 +1,56 @@
+From 6d8580be394ab4d3f2754b0125649942d81b748f Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen.kooi@oss.qualcomm.com>
+Date: Fri, 24 Jul 2026 16:57:24 +0200
+Subject: [PATCH 1/2] image-oci: call pm.update() before pm.install() in multi-layer package layers
+
+For multi-layer packages, the class doesn't call pm.update() like the
+OE-core image classes, making the package managers lack package lists.
+And without lists, you can't install packages.
+
+This is being hidden by the class treating opkg errors with bb.warn(),
+leading to every tool shouting "Success!!!", but delivering empty
+layers.
+
+Applies to both opkg and rpm paths.
+
+Reproducible with a minimal recipe:
+
+  inherit image image-oci
+  IMAGE_INSTALL = "base-files"
+  OCI_LAYER_MODE = "multi"
+  OCI_LAYERS = "base:packages:base-files+coreutils"
+
+do_image_oci's log shows the real failure, demoted to a warning:
+
+  WARNING: ... do_image_oci: Unable to install packages. Command
+  '[...opkg... install base-files coreutils]' returned 255:
+  error: opkg_prepare_url_for_install: Couldn't find anything to
+  satisfy 'base-files'.
+
+Signed-off-by: Koen Kooi <koen.kooi@oss.qualcomm.com>
+---
+ classes/image-oci.bbclass | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/classes/image-oci.bbclass b/classes/image-oci.bbclass
+index 9914411b..ed8926f6 100644
+--- a/classes/image-oci.bbclass
++++ b/classes/image-oci.bbclass
+@@ -484,6 +484,7 @@ def oci_install_layer_packages(d, layer_rootfs, layer_packages, layer_name):
+
+         # Generate/update repo indexes
+         pm.write_index()
++        pm.update()
+
+         # Install packages
+         # Use attempt_only=True to allow unresolved deps (resolved in later layers)
+@@ -509,6 +510,7 @@ def oci_install_layer_packages(d, layer_rootfs, layer_packages, layer_name):
+
+         # Write indexes
+         pm.write_index()
++        pm.update()
+
+         # Install packages
+         try:
+--
+2.34.1

@@ -37,6 +37,10 @@ repos:
 
   meta-virtualization:
     url: https://git.yoctoproject.org/git/meta-virtualization
+    patches:
+      0001-image-oci-opkg-update:
+        repo: meta-ai
+        path: patches/0001-image-oci-call-pm.update-before-pm.install.patch
 
 local_conf_header:
   base: |
