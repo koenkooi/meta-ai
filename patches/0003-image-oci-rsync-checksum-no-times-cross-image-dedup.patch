@@ -1,0 +1,53 @@
+From 1a2b3c4d5e6f7089abcdef0123456789abcdef01 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen.kooi@oss.qualcomm.com>
+Date: Tue, 28 Jul 2026 15:30:00 +0200
+Subject: [PATCH 3/3] image-oci: use rsync --checksum --no-times for
+ cross-image layer dedup
+
+An app image sharing OCI_BASE_IMAGE with a base image should not
+duplicate content the base already provides. It does:
+
+- oci_multilayer_install_packages() merges the layer rootfs into the
+  base bundle with plain "rsync -a", which decides whether to re-copy
+  a file by size+mtime, not content.
+- Per-recipe SOURCE_DATE_EPOCH means the same package built for two
+  different image recipes is byte-identical but has a different
+  mtime, so rsync always re-copies it.
+- rsync -a also implies --times, so the re-copy overwrites the
+  matching mtime the base already had, confirmed via
+  --itemize-changes: ">f..t...... usr/lib/libc.so.6".
+- umoci repack then sees a changed file and duplicates its content
+  into the new layer, defeating dedup entirely.
+
+Add --checksum (compare content, not size+mtime) and --no-times
+(leave an unchanged file's mtime alone). Reproduced with a base image
+and an app image both installing coreutils via a "packages:" layer:
+unpatched, blobs total 14.4 MiB; patched, 7.26 MiB, with the app's
+files now byte- and mtime-identical to the base's.
+
+Signed-off-by: Koen Kooi <koen.kooi@oss.qualcomm.com>
+---
+ classes/image-oci-umoci.inc | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/classes/image-oci-umoci.inc b/classes/image-oci-umoci.inc
+index a033d73a..7c5f1e02 100644
+--- a/classes/image-oci-umoci.inc
++++ b/classes/image-oci-umoci.inc
+@@ -582,8 +582,12 @@ IMAGE_CMD:oci() {
+
+                 if [ -d "$oci_preinstall_rootfs" ]; then
+                     bbnote "OCI: Copying pre-installed packages from $oci_preinstall_rootfs"
+-                    # Use rsync to merge into bundle rootfs (handles symlinks properly)
+-                    rsync -a --no-owner --no-group "$oci_preinstall_rootfs/" "$image_bundle_name/rootfs/"
++                    # --checksum --no-times: compare by content, not size+mtime, and
++                    # don't touch mtime on a match. Needed so a file already provided
++                    # by OCI_BASE_IMAGE stays identical across images instead of being
++                    # re-copied with a fresh per-recipe mtime, which would otherwise
++                    # make umoci repack duplicate it into this layer.
++                    rsync -a --checksum --no-times --no-owner --no-group "$oci_preinstall_rootfs/" "$image_bundle_name/rootfs/"
+
+                     # Create usrmerge symlinks in the first packages layer.
+                     # Normally done by ROOTFS_PREPROCESS_COMMAND in do_rootfs,
+--
+2.34.1
