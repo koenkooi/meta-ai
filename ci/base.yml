@@ -35,6 +35,10 @@ repos:
     url: https://github.com/qualcomm-linux/meta-qcom
 
 
+  oe-ai-playground:
+    url: https://github.com/bradfa/oe-ai-playground
+    layers:
+      meta-bradfa-ai-distro:
   meta-virtualization:
     url: https://git.yoctoproject.org/git/meta-virtualization
     patches:
