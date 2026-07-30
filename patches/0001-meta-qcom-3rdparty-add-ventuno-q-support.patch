@@ -1,0 +1,287 @@
+From bca3de6dd6c400a0ea57bbb24af84fa30d555430 Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+Date: Sat, 4 Jul 2026 03:18:50 +0000
+Subject: [PATCH 1/6] linux-qcom-next: use early/hwe/arduino 7.1 for ventuno-q
+
+Based on https://github.com/qualcomm-linux/kernel-topics/tree/early/hwe/arduino.
+
+Temporary until all the required updates are available via qcom-next
+from meta-qcom.
+
+Also add a config fragment enabling the Monza board peripherals and
+drop the PENDING QPS615 patch from SRC_URI, as it doesn't apply on
+top of this tree.
+
+Signed-off-by: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+---
+ .../linux/linux-qcom-next/configs/monza.cfg   | 33 +++++++++++++++++++
+ .../linux/linux-qcom-next_git.bbappend        | 10 ++++++
+ 2 files changed, 43 insertions(+)
+ create mode 100644 recipes-kernel/linux/linux-qcom-next/configs/monza.cfg
+
+diff --git a/recipes-kernel/linux/linux-qcom-next/configs/monza.cfg b/recipes-kernel/linux/linux-qcom-next/configs/monza.cfg
+new file mode 100644
+index 0000000..5e7f194
+--- /dev/null
++++ b/recipes-kernel/linux/linux-qcom-next/configs/monza.cfg
+@@ -0,0 +1,33 @@
++# Misc configs for Monza devboards that should be in defconfig
++
++# Microchip EMC2305 and compatible EMC2301/2/3; needed for fan control
++CONFIG_SENSORS_EMC2305=m
++# Texas Instruments INA219 and compatibles; power monitoring
++CONFIG_SENSORS_INA2XX=m
++# NXP PCA9635 16-channel PWM LED controller (on-board RGB LEDs via CCI I2C)
++CONFIG_LEDS_PCA963X=m
++# Qualcomm QCA8081 2.5G Ethernet PHY (PHY ID 0x004dd101)
++CONFIG_QCA808X_PHY=m
++# Cypress CCGx USB Type-C PD controller (UCSI interface)
++CONFIG_UCSI_CCG=m
++# Analog Devices ADV7535 DSI-to-HDMI bridge
++CONFIG_DRM_I2C_ADV7511=m
++# HDMI audio output via ADV7535
++CONFIG_DRM_I2C_ADV7511_AUDIO=y
++# Maxim MAX98090/91 CODEC (analog audio playback and capture)
++CONFIG_SND_SOC_MAX98090=m
++# SC8280XP/QCS8275 ASoC sound card machine driver
++CONFIG_SND_SOC_SC8280XP=m
++# PCIe M.2 E-key connector power sequencing (WiFi/BT LGA module)
++CONFIG_POWER_SEQUENCING_PCIE_M2=m
++# support for USB CAN adapters for demos and testing
++#
++# this enables popular hardware like CANable, Candlelight and PEAK System
++# PCAN-USB, supported by the slcan, gs_usb and peak_usb drivers respectively
++
++# Serial / USB serial CAN Adaptors (slcan)
++CONFIG_CAN_SLCAN=m
++# Geschwister Schneider UG and candleLight compatible interfaces
++CONFIG_CAN_GS_USB=m
++# PEAK PCAN-USB/USB Pro interfaces for CAN 2.0b/CAN-FD
++CONFIG_CAN_PEAK_USB=m
+diff --git a/recipes-kernel/linux/linux-qcom-next_git.bbappend b/recipes-kernel/linux/linux-qcom-next_git.bbappend
+index d3e62d5..f9446ff 100644
+--- a/recipes-kernel/linux/linux-qcom-next_git.bbappend
++++ b/recipes-kernel/linux/linux-qcom-next_git.bbappend
+@@ -1,5 +1,15 @@
++FILESEXTRAPATHS:prepend := "${THISDIR}/${BPN}:"
++
+ FILESEXTRAPATHS:prepend:radxa-dragon-q6a := "${THISDIR}/radxa-dragon-q6a:"
+ 
+ SRC_URI:append:radxa-dragon-q6a = " \
+ 			file://realtek-eth-8169.cfg \
+ "
++
++LINUX_VERSION:ventuno-q = "7.1"
++SRCREV:ventuno-q = "3ba5c1635f818b18d515c6175d05aad60997fdb2"
++KBUILD_CONFIG_EXTRA:remove:ventuno-q = "${S}/arch/arm64/configs/prune.config ${S}/arch/arm64/configs/qcom.config"
++SRCBRANCH:ventuno-q = "nobranch=1"
++SRCBRANCH:class-devupstream:ventuno-q = "branch=early/hwe/arduino"
++SRC_URI:remove:ventuno-q = "git://github.com/qualcomm-linux/kernel.git;${SRCBRANCH};protocol=https file://0001-PENDING-arm64-dts-qcom-talos-evk-add-QPS615-m.2-ethe.patch"
++SRC_URI:append:ventuno-q = " git://github.com/qualcomm-linux/kernel-topics.git;${SRCBRANCH};protocol=https file://configs/monza.cfg"
+-- 
+2.34.1
+
+
+From 8370626a6e5dd40e623fd0736949897ef6cba875 Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+Date: Sat, 4 Jul 2026 03:18:50 +0000
+Subject: [PATCH 2/6] firmware-qcom-cdt-ventuno-q: add recipe
+
+Add the CDT (Configuration Data Table) firmware for the Arduino
+VENTUNO Q (QCS8275 Monza), as available via CodeLinaro.
+
+The board reuses the generic QCS8300 boot firmware provided by
+meta-qcom, so deploy the CDT under the same 8300 subdirectory to
+follow the boot firmware path.
+
+Signed-off-by: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+---
+ .../firmware-boot/firmware-qcom-cdt-ventuno-q.bb       | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 recipes-bsp/firmware-boot/firmware-qcom-cdt-ventuno-q.bb
+
+diff --git a/recipes-bsp/firmware-boot/firmware-qcom-cdt-ventuno-q.bb b/recipes-bsp/firmware-boot/firmware-qcom-cdt-ventuno-q.bb
+new file mode 100644
+index 0000000..c47007d
+--- /dev/null
++++ b/recipes-bsp/firmware-boot/firmware-qcom-cdt-ventuno-q.bb
+@@ -0,0 +1,10 @@
++DESCRIPTION = "CDT (Configuration Data Table) Firmware for Arduino VENTUNO Q platform"
++
++SRC_URI = " \
++    https://${CDT_ARTIFACTORY}/QCS8300/cdt/qcs8275-Monza_v1.zip;downloadfilename=cdt-qcs8275-monza_${PV}.zip;name=cdt-qcs8275-monza \
++    "
++SRC_URI[cdt-qcs8275-monza.sha256sum] = "8484beb2ac1ff74a129c586f6d5331536765975dbabfb0600509f11010ec1c41"
++
++QCOM_CDT_SUBDIR = "8300"
++
++include recipes-bsp/firmware-boot/firmware-qcom-cdt-common.inc
+-- 
+2.34.1
+
+
+From b4b6984bd2a213aa6a2c76c65d531e2e0b9bf2d0 Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+Date: Sat, 4 Jul 2026 03:18:50 +0000
+Subject: [PATCH 3/6] packagegroup-ventuno-q: add recipe
+
+Add packagegroup for ventuno-q, based on packagegroup-iq-8275-evk to
+start with.
+
+Signed-off-by: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+---
+ .../packagegroups/packagegroup-ventuno-q.bb   | 26 +++++++++++++++++++
+ 1 file changed, 26 insertions(+)
+ create mode 100644 recipes-bsp/packagegroups/packagegroup-ventuno-q.bb
+
+diff --git a/recipes-bsp/packagegroups/packagegroup-ventuno-q.bb b/recipes-bsp/packagegroups/packagegroup-ventuno-q.bb
+new file mode 100644
+index 0000000..0a35927
+--- /dev/null
++++ b/recipes-bsp/packagegroups/packagegroup-ventuno-q.bb
+@@ -0,0 +1,26 @@
++SUMMARY = "Packages for the Arduino VENTUNO Q platform"
++
++inherit packagegroup
++
++PACKAGES = " \
++    ${PN}-firmware \
++    ${PN}-hexagon-dsp-binaries \
++"
++
++RRECOMMENDS:${PN}-firmware = " \
++    ${@bb.utils.contains_any('DISTRO_FEATURES', 'opencl opengl vulkan', 'linux-firmware-qcom-adreno-a623 linux-firmware-qcom-adreno-a650 linux-firmware-qcom-qcs8300-adreno', '', d)} \
++    ${@bb.utils.contains('DISTRO_FEATURES', 'wifi', 'linux-firmware-ath11k-qca2066', '', d)} \
++    ${@bb.utils.contains('DISTRO_FEATURES', 'bluetooth', 'linux-firmware-qca-qca2066 linux-firmware-qca-qca61x4-usb', '', d)} \
++    camxfirmware-monaco \
++    linux-firmware-qcom-qcs8300-audio \
++    linux-firmware-qcom-qcs8300-compute \
++    linux-firmware-qcom-qcs8300-generalpurpose \
++    linux-firmware-qcom-qcs8300-qupv3fw \
++    linux-firmware-qcom-vpu \
++"
++
++RDEPENDS:${PN}-hexagon-dsp-binaries = " \
++    hexagon-dsp-binaries-arduino-monza-adsp \
++    hexagon-dsp-binaries-arduino-monza-cdsp \
++    hexagon-dsp-binaries-arduino-monza-gdsp \
++"
+-- 
+2.34.1
+
+
+From 5fce39be8627a4f9e447d083fad4abe65aadd14a Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+Date: Sat, 4 Jul 2026 03:18:50 +0000
+Subject: [PATCH 4/6] conf: add machine configuration for Arduino VENTUNO Q
+
+https://www.arduino.cc/product-ventuno-q
+
+The board is based on the QCS8275 (Monza) SoC, reusing the
+qcom-qcs8300 machine include, the linux-qcom-next kernel and the
+generic QCS8300 boot firmware from meta-qcom, with the board specific
+CDT provided by firmware-qcom-cdt-ventuno-q.
+
+Signed-off-by: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+---
+ conf/machine/ventuno-q.conf | 29 +++++++++++++++++++++++++++++
+ 1 file changed, 29 insertions(+)
+ create mode 100644 conf/machine/ventuno-q.conf
+
+diff --git a/conf/machine/ventuno-q.conf b/conf/machine/ventuno-q.conf
+new file mode 100644
+index 0000000..cb85236
+--- /dev/null
++++ b/conf/machine/ventuno-q.conf
+@@ -0,0 +1,29 @@
++#@TYPE: Machine
++#@NAME: Arduino VENTUNO Q
++#@DESCRIPTION: Machine configuration for Arduino VENTUNO Q
++
++PREFERRED_PROVIDER_virtual/kernel ?= "linux-qcom-next"
++
++require conf/machine/include/qcom-qcs8300.inc
++
++MACHINE_FEATURES += "efi pci tpm2"
++
++QCOM_DTB_DEFAULT ?= "monaco-arduino-monza"
++
++KERNEL_DEVICETREE ?= " \
++    qcom/monaco-arduino-monza.dtb \
++"
++
++MACHINE_ESSENTIAL_EXTRA_RRECOMMENDS += " \
++    packagegroup-ventuno-q-firmware \
++    packagegroup-ventuno-q-hexagon-dsp-binaries \
++    qairt-sdk-hexagon-v75 \
++    qcom-fastcv-binaries-qcs8300-ride-dsp \
++"
++
++QCOM_CDT_FILE = "cdt_qcs8275-Monza"
++QCOM_BOOT_FILES_SUBDIR = "qcs8300"
++QCOM_PARTITION_FILES_SUBDIR ?= "partitions/qcs8275-monza/emmc"
++
++QCOM_BOOT_FIRMWARE = "firmware-qcom-boot-qcs8300"
++QCOM_CDT_FIRMWARE = "firmware-qcom-cdt-ventuno-q"
+-- 
+2.34.1
+
+
+From 4e4f447d74af959c961a2f97492b02a3728d2556 Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+Date: Sat, 4 Jul 2026 03:18:50 +0000
+Subject: [PATCH 5/6] ci: add ventuno-q.yml kas fragment
+
+Add kas machine fragment for Arduino VENTUNO Q.
+
+Signed-off-by: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+---
+ ci/ventuno-q.yml | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+ create mode 100644 ci/ventuno-q.yml
+
+diff --git a/ci/ventuno-q.yml b/ci/ventuno-q.yml
+new file mode 100644
+index 0000000..aa3c720
+--- /dev/null
++++ b/ci/ventuno-q.yml
+@@ -0,0 +1,8 @@
++# yaml-language-server: $schema=https://raw.githubusercontent.com/siemens/kas/master/kas/schema-kas.json
++
++header:
++  version: 14
++  includes:
++  - ci/base.yml
++
++machine: ventuno-q
+-- 
+2.34.1
+
+
+From 15c87aa3a61d0c6309ebb12937f15bde2fbc0fa9 Mon Sep 17 00:00:00 2001
+From: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+Date: Sat, 4 Jul 2026 03:18:50 +0000
+Subject: [PATCH 6/6] workflows: add build for arduino ventuno-q
+
+Add ventuno-q to the machine list.
+
+Signed-off-by: Ricardo Salveti <ricardo.salveti@oss.qualcomm.com>
+---
+ .github/workflows/build-yocto.yml | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/.github/workflows/build-yocto.yml b/.github/workflows/build-yocto.yml
+index 1734712..6846224 100644
+--- a/.github/workflows/build-yocto.yml
++++ b/.github/workflows/build-yocto.yml
+@@ -92,6 +92,7 @@ jobs:
+         machine:
+           - uno-q
+           - radxa-dragon-q6a
++          - ventuno-q
+         distro:
+           - name: nodistro
+             yamlfile: ""
+-- 
+2.34.1
+
