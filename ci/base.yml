@@ -34,6 +34,10 @@ repos:
   meta-qcom:
     url: https://github.com/qualcomm-linux/meta-qcom
 
+  meta-qcom-3rdparty:
+    url: https://github.com/qualcomm-linux/meta-qcom-3rdparty
+    branch: main
+
   oe-ai-playground:
     url: https://github.com/bradfa/oe-ai-playground
     layers:
