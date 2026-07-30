@@ -1,0 +1,157 @@
+From 97e0faa3be3bd86b1052740963175498c4428daf Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen.kooi@oss.qualcomm.com>
+Date: Sat, 25 Jul 2026 13:15:23 +0200
+Subject: [PATCH 2/2] image-oci: drop *-initial sysroot deps in do_image_oci
+ to avoid libgcc collision
+
+do_image_oci can abort with:
+
+  ERROR: <recipe> do_image_oci: The file .../crtbegin.o is installed
+  by both libgcc and libgcc-initial, aborting
+
+This was seen deterministically (6+ clean-sstate attempts) on an
+OCI_LAYER_MODE = "multi" image recipe whose "packages:" content is a
+from-source-compiled library with a moderately large DEPENDS. It is
+sstate-state-dependent: it only fires once do_image_oci's dependency
+walk actually has to populate (rather than skip via sstate/setscene
+shortcuts) both libgcc and libgcc-initial into the same recipe
+sysroot, so a given recipe/build combination can build clean one run
+and hit the collision on the next, depending on what is already
+present in sstate. Confirmed in our own testing: instrumenting the
+fix below shows it stripping two "*-initial" do_populate_sysroot
+nodes out of BB_TASKDEPDATA for a boost-based multi-layer "packages:"
+recipe -- i.e. libgcc-initial is a real, reachable node in
+do_image_oci's dependency walk for realistic recipes, even though a
+minimal single-package recipe does not reach it.
+
+Root cause: do_image_oci[depends] contains several
+"...:do_populate_sysroot" entries (umoci-native, jq-native, and for
+multi-layer package installs, opkg-native/rsync-native/dnf-native).
+Any task whose [depends] flag contains the substring
+"populate_sysroot" gets oe-core's extend_recipe_sysroot
+(staging.bbclass) auto-attached as a prefunc, which walks the full
+transitive do_populate_sysroot closure reachable from those deps and
+copies it into the recipe's private sysroot.
+
+oe-core already protects against exposing both libgcc and
+libgcc-initial into the same sysroot: setscene_depvalid() excludes
+"*-initial" recipes via SSTATE_EXCLUDEDEPS_SYSROOT
+(".*->.*-initial.*", meta/conf/layer.conf, "nothing needs to depend
+on libc-initial"), and staging_populate_sysroot_dir has its own
+"skip libgcc-initial due to file overlap" special case. But the
+SSTATE_EXCLUDEDEPS_SYSROOT check inside setscene_depvalid only
+applies when the *dependent* task is itself do_populate_sysroot
+("taskdependees[task][1] == 'do_populate_sysroot'"). For
+do_image_oci, the dependent task is do_image_oci, not
+do_populate_sysroot, so that exclusion is skipped entirely and both
+libgcc and libgcc-initial fall through to the default "keep it"
+path, landing in the same sysroot and colliding on their shared
+crtbegin.o.
+
+Fix: add a RecipeTaskPreProcess handler that, for do_image_oci
+specifically, prepends a prefunc which strips "*-initial"
+do_populate_sysroot nodes out of BB_TASKDEPDATA before
+extend_recipe_sysroot runs (extend_recipe_sysroot re-reads
+BB_TASKDEPDATA fresh each time, so this is sufficient). This mirrors
+the existing "skip *-initial" intent from
+staging_populate_sysroot_dir, scoped narrowly to do_image_oci so it
+doesn't change behavior for any other task. The *-initial recipes
+are bootstrap-only (used to build glibc) and are fully superseded by
+their real counterparts by image-assembly time, so nothing an image
+needs is lost by excluding them here.
+
+Signed-off-by: Koen Kooi <koen.kooi@oss.qualcomm.com>
+---
+ classes/image-oci.bbclass | 77 ++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 77 insertions(+)
+
+diff --git a/classes/image-oci.bbclass b/classes/image-oci.bbclass
+index ed8926f6..c397e2f9 100644
+--- a/classes/image-oci.bbclass
++++ b/classes/image-oci.bbclass
+@@ -526,6 +526,83 @@ def oci_install_layer_packages(d, layer_rootfs, layer_packages, layer_name):
+
+     bb.note(f"OCI: Package installation complete for layer '{layer_name}'")
+
++# =============================================================================
++# Work around libgcc vs libgcc-initial sysroot collision in do_image_oci
++# =============================================================================
++#
++# do_image_oci[depends] contains "...:do_populate_sysroot" entries (for the
++# native tools it needs: umoci/jq/opkg/rsync-native). oe-core's
++# staging_taskhandler therefore auto-attaches extend_recipe_sysroot as a
++# prefunc of do_image_oci (any task whose [depends] contains the substring
++# "populate_sysroot" gets it). extend_recipe_sysroot then walks the whole
++# reachable populate_sysroot dependency tree and exposes it into this recipe's
++# private sysroot.
++#
++# For a *do_populate_sysroot* consumer, oe-core's setscene_depvalid() excludes
++# *-initial recipes (SSTATE_EXCLUDEDEPS_SYSROOT ".*->.*-initial.*"), so a normal
++# recipe never sees both libgcc and libgcc-initial. But that exclusion is gated
++# behind "taskdependees[task][1] == 'do_populate_sysroot'", which is false here
++# (the consuming task is do_image_oci), so both libgcc and libgcc-initial get
++# exposed and their shared crtbegin.o collides:
++#   ERROR: ... The file .../crtbegin.o is installed by both libgcc and
++#          libgcc-initial, aborting
++#
++# oe-core already skips *-initial on its other sysroot-population codepaths
++# (staging_populate_sysroot_dir: "skip libgcc-initial due to file overlap", and
++# the do_sdk_depends/do_populate_sdk_ext skip inside extend_recipe_sysroot
++# itself). We apply the same intent here, narrowly and only for image-oci
++# recipes: before extend_recipe_sysroot runs, drop *-initial do_populate_sysroot
++# nodes from this task's copy of BB_TASKDEPDATA so they never enter the tree.
++# extend_recipe_sysroot re-reads BB_TASKDEPDATA fresh, so this is sufficient and
++# touches nothing else. The *-initial recipes are bootstrap-only (used to build
++# glibc) and are fully superseded by their real counterparts by image-assembly
++# time, so nothing an image needs is lost.
++python oci_strip_initial_from_taskdepdata () {
++    import copy
++
++    taskdepdata = d.getVar("BB_TASKDEPDATA", False)
++    if not taskdepdata:
++        return
++
++    filtered = copy.deepcopy(taskdepdata)
++    drop = set()
++    for k, v in filtered.items():
++        # v[0] = PN, v[1] = taskname
++        if v[1] == "do_populate_sysroot" and v[0].endswith("-initial"):
++            drop.add(k)
++
++    if not drop:
++        return
++
++    for k in drop:
++        del filtered[k]
++    # Remove inbound edges to the dropped nodes. Each entry is a bb.TaskData
++    # namedtuple (immutable), but its dep set (index 3) is a mutable set, so
++    # mutate it in place rather than reassigning the field.
++    for v in filtered.values():
++        v[3].difference_update(drop)
++
++    bb.note("OCI: dropped %d *-initial do_populate_sysroot node(s) from "
++            "BB_TASKDEPDATA to avoid libgcc/libgcc-initial sysroot collision"
++            % len(drop))
++    d.setVar("BB_TASKDEPDATA", filtered)
++}
++oci_strip_initial_from_taskdepdata[vardepsexclude] += "BB_TASKDEPDATA"
++
++# Ensure our prefunc runs *before* extend_recipe_sysroot. staging_taskhandler
++# (a global class) prepends extend_recipe_sysroot on the RecipeTaskPreProcess
++# event; this handler is registered later (image-oci is inherited after the
++# global classes) so its prepend lands first in the prefunc list.
++python oci_taskhandler() {
++    task = "do_image_oci"
++    if task in e.tasklist:
++        deps = d.getVarFlag(task, "depends")
++        if deps and "populate_sysroot" in deps:
++            d.prependVarFlag(task, "prefuncs", "oci_strip_initial_from_taskdepdata ")
++}
++oci_taskhandler[eventmask] = "bb.event.RecipeTaskPreProcess"
++addhandler oci_taskhandler
++
+ # the IMAGE_CMD:oci comes from the .inc
+ OCI_IMAGE_BACKEND_INC ?= "${@"image-oci-" + "${OCI_IMAGE_BACKEND}" + ".inc"}"
+ include ${OCI_IMAGE_BACKEND_INC}
+--
+2.34.1

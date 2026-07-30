@@ -41,6 +41,9 @@ repos:
       0001-image-oci-opkg-update:
         repo: meta-ai
         path: patches/0001-image-oci-call-pm.update-before-pm.install.patch
+      0002-image-oci-strip-initial-sysroot-deps:
+        repo: meta-ai
+        path: patches/0002-image-oci-strip-initial-sysroot-deps.patch
 
 local_conf_header:
   base: |
