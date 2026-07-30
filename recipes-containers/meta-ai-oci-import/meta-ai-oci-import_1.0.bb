@@ -1,7 +1,7 @@
 SUMMARY = "Import bundled AI-runtime OCI images into Docker at boot"
-DESCRIPTION = "Ships the litert, onnxruntime, and tensorflow-lite OCI archives into the \
-rootfs and instantiates a templated systemd oneshot service per app to load each into \
-Docker at boot time."
+DESCRIPTION = "Ships the litert, onnxruntime, tensorflow-lite, and llama-cpp OCI archives \
+into the rootfs and instantiates a templated systemd oneshot service per app to load each \
+into Docker at boot time."
 HOMEPAGE = "https://github.com/qualcomm-linux/meta-ai"
 LICENSE = "MIT"
 LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384361b4de20420"
@@ -14,7 +14,7 @@ inherit systemd meta_ai_strip_initial_sysroot_deps
 # tune-arch package would let two machines share a stale build of this one.
 PACKAGE_ARCH = "${MACHINE_ARCH}"
 
-METAAI_OCI_APPS = "litert onnxruntime tensorflow-lite"
+METAAI_OCI_APPS = "litert onnxruntime tensorflow-lite llama-cpp"
 
 SYSTEMD_SERVICE:${PN} = "${@' '.join('meta-ai-oci-import@%s.service' % a for a in d.getVar('METAAI_OCI_APPS').split())}"
 SYSTEMD_AUTO_ENABLE:${PN} = "enable"
@@ -39,6 +39,7 @@ do_install[depends] += "\
     meta-ai-litert-oci:do_image_complete \
     meta-ai-onnxruntime-oci:do_image_complete \
     meta-ai-tensorflow-lite-oci:do_image_complete \
+    meta-ai-llama-cpp-oci:do_image_complete \
 "
 
 do_install() {
@@ -46,6 +47,7 @@ do_install() {
     install -m 0644 ${DEPLOY_DIR_IMAGE}/meta-ai-litert-oci-latest-oci.tar ${D}${datadir}/meta-ai/litert-latest-oci.tar
     install -m 0644 ${DEPLOY_DIR_IMAGE}/meta-ai-onnxruntime-oci-latest-oci.tar ${D}${datadir}/meta-ai/onnxruntime-latest-oci.tar
     install -m 0644 ${DEPLOY_DIR_IMAGE}/meta-ai-tensorflow-lite-oci-latest-oci.tar ${D}${datadir}/meta-ai/tensorflow-lite-latest-oci.tar
+    install -m 0644 ${DEPLOY_DIR_IMAGE}/meta-ai-llama-cpp-oci-latest-oci.tar ${D}${datadir}/meta-ai/llama-cpp-latest-oci.tar
 
     install -d ${D}${systemd_system_unitdir}
     install -m 0644 ${UNPACKDIR}/meta-ai-oci-import@.service ${D}${systemd_system_unitdir}/meta-ai-oci-import@.service
