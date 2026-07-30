@@ -1,0 +1,14 @@
+[Unit]
+Description=Import the bundled %i AI-runtime OCI image into Docker
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# docker load, not docker import: import flattens the rootfs into a single
+# untagged layer and drops the image config.
+ExecStart=/usr/bin/meta-ai-oci-import.sh %i
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
