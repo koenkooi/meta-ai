@@ -7,9 +7,3 @@ header:
   - ci/base.yml
 
 machine: qemuarm64
-
-local_conf_header:
-  qemu-test-login: |
-    # Serial-console autologin for the docker-load boot verification test only
-    # (this machine/target is not a real deliverable, see header comment).
-    EXTRA_IMAGE_FEATURES += "allow-empty-password allow-root-login empty-root-password serial-autologin-root"

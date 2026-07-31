@@ -83,6 +83,12 @@ local_conf_header:
       HALT,/tmp,10M,1K"
   virtualization: |
     SKIP_META_VIRT_SANITY_CHECK = "1"
+  root-login: |
+    # Empty root password + serial autologin on every image built from this
+    # config, so a board can be reached over its console with no credentials
+    # to look up. None of these machines have a real deliverable password
+    # policy yet; revisit if/when one is defined.
+    EXTRA_IMAGE_FEATURES += "allow-empty-password allow-root-login empty-root-password serial-autologin-root"
   distro-features: |
     DISTRO_FEATURES:append = " virtualization seccomp ipv6"
   qcomflash: |
