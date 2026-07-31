@@ -193,7 +193,7 @@ new file mode 100644
 index 0000000..cb85236
 --- /dev/null
 +++ b/conf/machine/ventuno-q.conf
-@@ -0,0 +1,29 @@
+@@ -0,0 +1,33 @@
 +#@TYPE: Machine
 +#@NAME: Arduino VENTUNO Q
 +#@DESCRIPTION: Machine configuration for Arduino VENTUNO Q
@@ -210,6 +210,11 @@ index 0000000..cb85236
 +    qcom/monaco-arduino-monza.dtb \
 +"
 +
++# Debian reference image's kernel command line for this board (deferred
++# probe timeout matters for the PCIe switch + downstream WiFi/USB3 devices
++# on pcie0, which probe later than the point-to-point NVMe link on pcie1).
++KERNEL_CMDLINE_EXTRA:append = " clk_ignore_unused pd_ignore_unused audit=0 deferred_probe_timeout=30"
++
 +MACHINE_ESSENTIAL_EXTRA_RRECOMMENDS += " \
 +    packagegroup-ventuno-q-firmware \
 +    packagegroup-ventuno-q-hexagon-dsp-binaries \
@@ -223,7 +228,7 @@ index 0000000..cb85236
 +
 +QCOM_BOOT_FIRMWARE = "firmware-qcom-boot-qcs8300"
 +QCOM_CDT_FIRMWARE = "firmware-qcom-cdt-ventuno-q"
--- 
+--
 2.34.1
 
 
