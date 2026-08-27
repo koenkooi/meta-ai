@@ -38,9 +38,9 @@ repos:
     url: https://github.com/qualcomm-linux/meta-qcom-3rdparty
     branch: main
     patches:
-      0001-add-ventuno-q-support:
+      0001-monza-cfg-additions:
         repo: meta-ai
-        path: patches/0001-meta-qcom-3rdparty-add-ventuno-q-support.patch
+        path: patches/0001-meta-qcom-3rdparty-monza-cfg-additions.patch
 
   oe-ai-playground:
     url: https://github.com/bradfa/oe-ai-playground

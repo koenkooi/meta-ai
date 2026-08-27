@@ -1,0 +1,48 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Koen Kooi <koen.kooi@oss.qualcomm.com>
+Date: Thu, 27 Aug 2026 18:00:00 +0200
+Subject: [PATCH] monza.cfg: add OV5647 camera support, build CAN drivers in
+
+CONFIG_VIDEO_OV5647 is needed to use a Raspberry Pi v1 camera module
+on the Monza board.
+
+CONFIG_CAN itself is not selected by this file, so olddefconfig caps
+it at =m via defconfig regardless of any submodule's own setting.
+Build CONFIG_CAN=y plus the three USB CAN adapter drivers into the
+kernel rather than as modules, so they don't depend on that cap.
+
+Signed-off-by: Koen Kooi <koen.kooi@oss.qualcomm.com>
+---
+ recipes-kernel/linux/linux-qcom-next/configs/monza.cfg | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/recipes-kernel/linux/linux-qcom-next/configs/monza.cfg b/recipes-kernel/linux/linux-qcom-next/configs/monza.cfg
+index 5e7f194..16cd390 100644
+--- a/recipes-kernel/linux/linux-qcom-next/configs/monza.cfg
++++ b/recipes-kernel/linux/linux-qcom-next/configs/monza.cfg
+@@ -20,14 +20,20 @@ CONFIG_SND_SOC_SC8280XP=m
+ CONFIG_SND_SOC_SC8280XP=m
+ # PCIe M.2 E-key connector power sequencing (WiFi/BT LGA module)
+ CONFIG_POWER_SEQUENCING_PCIE_M2=m
++# OmniVision OV5647 sensor support; used in Raspberry Pi v1 camera
++CONFIG_VIDEO_OV5647=m
++# Built-in, not a module: USB CAN adapter drivers below depend on CAN and
++# would otherwise be silently capped at =m by olddefconfig regardless of
++# their own value, since defconfig sets CONFIG_CAN=m.
++CONFIG_CAN=y
+ # support for USB CAN adapters for demos and testing
+ #
+ # this enables popular hardware like CANable, Candlelight and PEAK System
+ # PCAN-USB, supported by the slcan, gs_usb and peak_usb drivers respectively
+
+ # Serial / USB serial CAN Adaptors (slcan)
+-CONFIG_CAN_SLCAN=m
++CONFIG_CAN_SLCAN=y
+ # Geschwister Schneider UG and candleLight compatible interfaces
+-CONFIG_CAN_GS_USB=m
++CONFIG_CAN_GS_USB=y
+ # PEAK PCAN-USB/USB Pro interfaces for CAN 2.0b/CAN-FD
+-CONFIG_CAN_PEAK_USB=m
++CONFIG_CAN_PEAK_USB=y
+--
+2.34.1
