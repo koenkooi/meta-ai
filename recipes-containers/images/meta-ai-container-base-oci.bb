@@ -22,13 +22,49 @@ LIC_FILES_CHKSUM = "file://${COREBASE}/meta/COPYING.MIT;md5=3da9cfbcb788c80a0384
 
 OCI_LAYER_MODE = "multi"
 OCI_LAYERS = "base:packages:base-files+base-passwd+netbase+glibc+libgcc\
-+libabsl-strings2605.0.0+libabsl-strings-internal2605.0.0\
-+libabsl-raw-logging-internal2605.0.0+libabsl-throw-delegate2605.0.0"
++libabsl-strings+libabsl-strings-internal\
++libabsl-raw-logging-internal+libabsl-throw-delegate"
 
 IMAGE_FSTYPES = "container oci"
 inherit image
 inherit image-oci
 inherit meta_ai_strip_initial_sysroot_deps
+
+# abseil-cpp's shared-lib sub-packages above are pre-Debian-rename names (as
+# glibc/libgcc already are, for the parse-time reason in DESCRIPTION); their
+# real opkg name embeds a SOVERSION derived from whichever abseil-cpp provider
+# wins on a given MACHINE (meta-openembedded's vs. meta-qcom's dynamic-layer
+# override, pinned per-machine via PREFERRED_VERSION_abseil-cpp) - e.g.
+# libabsl-strings is libabsl-strings2605.0.0 on rb1-core-kit but
+# libabsl-strings2601.0.0 on qemuarm64. do_rootfs already renames
+# PACKAGE_INSTALL via oe.packagedata.runtime_mapping_rename before installing,
+# so it picks up whichever is real; do_image_oci's own layer-package installer
+# does not, so do it here from real PKGDATA before it runs.
+python meta_ai_resolve_oci_layer_package_names () {
+    import oe.packagedata
+
+    layers = (d.getVar('OCI_LAYERS') or '').split()
+    changed = False
+    resolved = []
+    for layer_def in layers:
+        parts = layer_def.split(':')
+        if len(parts) >= 3 and parts[1] == 'packages':
+            renamed = []
+            for pkg in ':'.join(parts[2:]).split('+'):
+                real = pkg
+                if oe.packagedata.has_subpkgdata(pkg, d):
+                    real = oe.packagedata.read_subpkgdata_dict(pkg, d).get('PKG') or pkg
+                changed = changed or real != pkg
+                renamed.append(real)
+            layer_def = '%s:packages:%s' % (parts[0], '+'.join(renamed))
+        resolved.append(layer_def)
+
+    if changed:
+        bb.note("meta-ai-container-base-oci: resolved OCI_LAYERS packages to their "
+                 "real (post-rename) names: %s" % ' '.join(resolved))
+        d.setVar('OCI_LAYERS', ' '.join(resolved))
+}
+do_image_oci[prefuncs] =+ "meta_ai_resolve_oci_layer_package_names "
 
 IMAGE_FEATURES = ""
 IMAGE_LINGUAS = ""
