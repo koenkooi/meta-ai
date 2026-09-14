@@ -12,7 +12,7 @@ defaults:
 repos:
   meta-ai:
 
-  openembedded-core:
+  oe-core:
     url: https://github.com/openembedded/openembedded-core
     layers:
       meta:
@@ -72,7 +72,6 @@ local_conf_header:
     # exclude them rather than fight Go's cache permissions.
     RM_WORK_EXCLUDE += "containerd cdi"
   diskmon: |
-    # Protect against disk fulling up and produce a clear error if that happens
     BB_DISKMON_DIRS ??= "\
       STOPTASKS,${TMPDIR},1G,100K \
       STOPTASKS,${DL_DIR},1G,100K \
