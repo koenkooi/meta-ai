@@ -37,10 +37,14 @@ repos:
   meta-qcom-3rdparty:
     url: https://github.com/qualcomm-linux/meta-qcom-3rdparty
     branch: main
+
+  meta-qcom-arduino:
+    url: https://github.com/qualcomm-linux/meta-qcom-arduino
+    branch: main
     patches:
       0001-monza-cfg-additions:
         repo: meta-ai
-        path: patches/0001-meta-qcom-3rdparty-monza-cfg-additions.patch
+        path: patches/0001-meta-qcom-arduino-monza-cfg-additions.patch
 
   oe-ai-playground:
     url: https://github.com/bradfa/oe-ai-playground
